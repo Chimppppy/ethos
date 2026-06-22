@@ -7,6 +7,7 @@ All `cli.js` commands print JSON to stdout. This is the interface agents should 
 ```bash
 node cli.js migrate
 node cli.js status
+node cli.js auth status
 node cli.js accounts
 node cli.js sync
 node cli.js schema
@@ -70,6 +71,7 @@ Rules:
 - Semicolons are rejected.
 - Write/schema keywords are rejected.
 - `items` and `access_token` are rejected.
+- `link_sessions` and `link_token` are rejected.
 
 ## Friendly Shell
 
@@ -83,6 +85,7 @@ Inside:
 ethos> accounts
 ethos> sync
 ethos> /link start
+ethos> /link update
 ethos> where did my money go this month
 ethos> month 2026-06
 ethos> recent transactions
@@ -100,3 +103,13 @@ node ethos.js --json --once "/json report month --month 2026-06"
 ```
 
 Agents should prefer `cli.js` for automation and JSON parsing.
+
+## Plaid Link
+
+```bash
+npm run link
+npm run link:update
+npm run link:sandbox
+```
+
+Use `npm run link` to connect another institution. Use `npm run link:update` when sync reports `ITEM_LOGIN_REQUIRED` or `needs_update: true`; it repairs the existing local Plaid Item instead of creating a duplicate connection.

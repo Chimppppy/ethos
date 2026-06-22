@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="#license">Non-commercial source-available</a> ·
-  <a href="./handbook/">Agent handbook</a> ·
+  <a href="#license">Non-commercial source-available</a> -
+  <a href="./handbook/">Agent handbook</a> -
   <a href="./AGENTS.md">Codex / Claude guide</a>
 </p>
 
@@ -69,6 +69,13 @@ npm run sync
 npm run ethos
 ```
 
+If a bank later requires renewed consent, MFA, or OAuth repair, update the existing local Item instead of creating a duplicate connection:
+
+```bash
+npm run link:update
+npm run sync
+```
+
 Install the local command if you want `ethos` available from your terminal:
 
 ```bash
@@ -97,6 +104,7 @@ ethos> uncategorized
 ethos> cashflow
 ethos> /budget list
 ethos> /link start
+ethos> /link update
 ```
 
 One-shot mode works well from other tools:
@@ -114,6 +122,7 @@ Agents should prefer `cli.js` because it prints JSON and has tighter boundaries.
 ```bash
 node cli.js status
 node cli.js sync
+node cli.js auth status
 node cli.js accounts
 node cli.js tx list --limit 20
 node cli.js report month --month 2026-06
@@ -154,6 +163,26 @@ npm run sync
 
 Ethos syncs all active Items for the current `PLAID_ENV`.
 
+## Repairing Bank Auth
+
+Sometimes Plaid returns `ITEM_LOGIN_REQUIRED` because your bank needs fresh MFA, renewed OAuth consent, or another user action. Ethos stores the existing Plaid access token in your local SQLite database, so agents do not need terminal-session auth. The repair flow creates a Plaid Link update-mode token from that local Item.
+
+```bash
+npm run sync
+npm run link:update
+npm run sync
+```
+
+From the shell:
+
+```text
+ethos> /sync
+ethos> /link update
+ethos> /sync
+```
+
+`sync` marks the affected Item with `needs_update: true` and returns `repair_command: "npm run link:update"`. `node cli.js auth status` shows the same local connection state without exposing access tokens.
+
 ## Budgets
 
 Budgets are stored locally in the `budgets` table and are included in monthly reports.
@@ -188,6 +217,7 @@ Core tables:
 - `accounts`: account metadata and balances.
 - `transactions`: synced transaction records.
 - `budgets`: user-defined monthly category limits.
+- `link_sessions`: short-lived local Plaid Link session metadata for OAuth/update-mode resume.
 
 Most reads should use the `v_tx` view. It joins transaction and account data and exposes a normalized `category` field:
 
@@ -206,7 +236,7 @@ Ethos is local-first by design:
 - `node_modules/` is ignored.
 - Access-token-like fields are redacted from CLI JSON output.
 - Read-only SQL only allows `SELECT` / `WITH`.
-- SQL queries against `items` or `access_token` are blocked.
+- SQL queries against `items`, `access_token`, `link_sessions`, or `link_token` are blocked.
 - Sandbox and production Items are tagged by Plaid environment.
 
 Before publishing your fork, run:

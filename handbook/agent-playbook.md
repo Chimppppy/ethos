@@ -7,7 +7,7 @@ Use this when an AI coding agent is driving Ethos for a user.
 - Run a CLI command before stating any financial number.
 - Use `node cli.js ...` for stable JSON.
 - Do not read or print `.env`, `access_token`, Plaid secrets, or raw token-like values.
-- Do not query `items` or `access_token`; the CLI blocks this through `query`.
+- Do not query `items`, `access_token`, `link_sessions`, or `link_token`; the CLI blocks this through `query`.
 - Positive Plaid transaction amounts are outflows. Negative amounts are inflows.
 - Ask for explicit user confirmation before writes:
   - `node cli.js tx categorize ...`
@@ -29,6 +29,14 @@ If the user wants current data and did not ask for cached-only analysis:
 ```bash
 node cli.js sync
 ```
+
+If sync returns `needs_update: true` or `ITEM_LOGIN_REQUIRED`, tell the user to run:
+
+```bash
+npm run link:update
+```
+
+That opens Plaid Link update mode for the existing local Item. Do not create a duplicate Item to repair auth.
 
 Then run the specific report or query needed.
 

@@ -88,6 +88,23 @@ ethos> /link start
 
 If Plaid opens to an already linked institution, click `+ Add new account` inside the Plaid modal. That is Plaid's returning-user path to institution search.
 
+## Repair Existing Bank Auth
+
+If `node cli.js sync` returns `needs_update: true` or Plaid `ITEM_LOGIN_REQUIRED`, run Plaid Link update mode:
+
+```bash
+npm run link:update
+```
+
+Open the printed local URL, click `Repair selected connection`, and finish the bank/Plaid prompts. Then refresh:
+
+```bash
+npm run sync
+node cli.js auth status
+```
+
+This uses the Plaid access token already stored in the local SQLite database. The Item's access token does not move into Claude, Codex, or a terminal session.
+
 ## Verify
 
 ```bash

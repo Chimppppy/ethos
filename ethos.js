@@ -56,6 +56,7 @@ Direct commands:
   /budget set <CATEGORY> <amount>
   /budget rm <CATEGORY>
   /link start
+  /link update
   /link status
   /link stop
   /query <SELECT ...>
@@ -261,6 +262,7 @@ function renderBanner(statusJson) {
     `${style('Quick commands', ansi.bold)}`,
     `${style('/sync', ansi.cyan)} refresh Plaid and local cache`,
     `${style('/link start', ansi.cyan)} connect another bank`,
+    `${style('/link update', ansi.cyan)} repair bank auth`,
     `${style('accounts', ansi.cyan)} list balances`,
     `${style('where did my money go', ansi.cyan)} month report`,
     '',
@@ -376,6 +378,10 @@ function parseLine(line) {
 
   if (/\b(connect|link|add)\b.*\b(bank|account|institution)\b/.test(lower)) {
     return { type: 'link', action: 'start' };
+  }
+
+  if (/\b(repair|reauth|re-auth|fix)\b.*\b(bank|plaid|connection|auth|login)\b/.test(lower)) {
+    return { type: 'link', action: 'update' };
   }
 
   if (lower.startsWith('/json ')) {
@@ -556,24 +562,27 @@ function runCli(args) {
 function linkStatusText() {
   if (linkServer?.process && !linkServer.process.killed) {
     const url = linkServer.url ?? 'starting...';
-    return `Plaid Link server is running: ${url}`;
+    const mode = linkServer.mode === 'update' ? 'repair mode' : 'connect mode';
+    return `Plaid Link server is running in ${mode}: ${url}`;
   }
-  return 'Plaid Link server is not running. Use /link start to connect another institution.';
+  return 'Plaid Link server is not running. Use /link start to connect another institution or /link update to repair auth.';
 }
 
-function startLinkServer() {
+function startLinkServer(mode = 'create') {
   if (linkServer?.process && !linkServer.process.killed) {
     return linkStatusText();
   }
 
-  const child = spawn(process.execPath, [SETUP_LINK_PATH], {
+  const setupArgs = mode === 'update' ? [SETUP_LINK_PATH, '--update'] : [SETUP_LINK_PATH];
+  const child = spawn(process.execPath, setupArgs, {
     cwd: ROOT_DIR,
     env: process.env,
     windowsHide: true
   });
   linkServer = {
     process: child,
-    url: null
+    url: null,
+    mode
   };
 
   let stdoutBuffer = '';
@@ -594,7 +603,11 @@ function startLinkServer() {
           if (payload.port_changed) {
             console.log(`Port ${payload.requested_port} was busy, so Ethos used ${payload.port}.`);
           }
-          console.log('Open that URL, click Connect account, and complete Plaid Link. You can connect multiple institutions from the same page.');
+          if (payload.mode === 'update') {
+            console.log('Open that URL, click Repair selected connection, and complete Plaid Link update mode. Then run /sync again.');
+          } else {
+            console.log('Open that URL, click Connect account, and complete Plaid Link. You can connect multiple institutions from the same page.');
+          }
         } else {
           console.log(`\n${JSON.stringify(payload, null, 2)}`);
         }
@@ -634,7 +647,10 @@ function stopLinkServer() {
 function handleLinkCommand(action) {
   const normalized = String(action ?? 'start').toLowerCase();
   if (['start', 'run', 'open', 'bank', 'banks'].includes(normalized)) {
-    return startLinkServer();
+    return startLinkServer('create');
+  }
+  if (['update', 'repair', 'reauth', 're-auth', 'auth', 'login'].includes(normalized)) {
+    return startLinkServer('update');
   }
   if (['status', 'info'].includes(normalized)) {
     return linkStatusText();
@@ -642,7 +658,7 @@ function handleLinkCommand(action) {
   if (['stop', 'kill', 'close'].includes(normalized)) {
     return stopLinkServer();
   }
-  return 'Use /link start, /link status, or /link stop.';
+  return 'Use /link start, /link update, /link status, or /link stop.';
 }
 
 function formatResult(result, format) {
@@ -703,7 +719,8 @@ function formatStatus(json) {
   ];
 
   for (const item of json.items ?? []) {
-    lines.push(`- ${item.institution_name ?? item.item_id} (${item.plaid_env}) cursor=${item.has_cursor ? 'yes' : 'no'}`);
+    const repair = item.needs_update ? ` needs repair: ${item.last_error_code ?? 'ITEM_LOGIN_REQUIRED'}; run npm run link:update` : '';
+    lines.push(`- ${item.institution_name ?? item.item_id} (${item.plaid_env}) cursor=${item.has_cursor ? 'yes' : 'no'}${repair}`);
   }
 
   return lines.join('\n');
@@ -715,11 +732,15 @@ function formatSync(json) {
   ];
 
   for (const item of json.items) {
-    lines.push(`- ${item.institution_name ?? item.item_id}: ${item.accounts} accounts, +${item.added}, ~${item.modified}, -${item.removed}`);
+    const repair = item.needs_update ? ' [needs Plaid repair: run /link update]' : '';
+    lines.push(`- ${item.institution_name ?? item.item_id}: ${item.accounts} accounts, +${item.added}, ~${item.modified}, -${item.removed}${repair}`);
     for (const warning of item.warnings ?? []) {
       const plaid = warning.details?.plaid_error;
       const code = plaid?.error_code ? ` ${plaid.error_code}` : '';
       lines.push(`  Warning:${code} during ${warning.step}. ${warning.message}`);
+      if (warning.repair_command) {
+        lines.push(`  Repair: ${warning.repair_command}`);
+      }
     }
   }
 
@@ -822,9 +843,12 @@ async function execute(parsed, rl, { rawJson = false, interactive = false } = {}
     return;
   }
   if (parsed.type === 'link') {
-    if (!interactive && ['start', 'run', 'open', 'bank', 'banks'].includes(String(parsed.action ?? 'start').toLowerCase())) {
-      console.log('Connecting another institution starts a local Plaid Link server.');
-      console.log('Run `npm run ethos`, then use `/link start`, or run `node setup-link.js` directly.');
+    const linkAction = String(parsed.action ?? 'start').toLowerCase();
+    if (!interactive && ['start', 'run', 'open', 'bank', 'banks', 'update', 'repair', 'reauth', 're-auth', 'auth', 'login'].includes(linkAction)) {
+      console.log('Plaid Link starts a local browser server.');
+      console.log(linkAction === 'update' || linkAction === 'repair' || linkAction === 'reauth' || linkAction === 're-auth' || linkAction === 'auth' || linkAction === 'login'
+        ? 'Run `npm run link:update`, or run `npm run ethos` and use `/link update`.'
+        : 'Run `npm run link`, or run `npm run ethos` and use `/link start`.');
       return;
     }
     console.log(handleLinkCommand(parsed.action));

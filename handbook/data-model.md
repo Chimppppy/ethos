@@ -22,6 +22,8 @@ Columns:
 - `institution_name`.
 - `cursor` Plaid transactions sync cursor. Do not print unless debugging privately.
 - `last_synced_at`.
+- `needs_update` marks Items that need Plaid Link update mode.
+- `last_error_code`, `last_error_message`, and `last_error_at` store the latest local sync auth error without exposing tokens.
 
 ### `accounts`
 
@@ -79,6 +81,22 @@ node cli.js budget set <CATEGORY> <amount>
 node cli.js budget rm <CATEGORY>
 ```
 
+### `link_sessions`
+
+Short-lived local Plaid Link session records for OAuth/update-mode resume.
+
+Columns:
+
+- `session_id` primary key.
+- `mode` (`create` or `update`).
+- `plaid_env`.
+- `item_id`.
+- `link_token`.
+- `created_at`.
+- `completed_at`.
+
+Treat `link_token` as local auth material. Agents must not query this table.
+
 ## View: `v_tx`
 
 Use `v_tx` for reads. It joins transactions to account names and adds:
@@ -111,3 +129,5 @@ Do not commit:
 - exported CSV/JSON reports unless the user explicitly wants them tracked
 
 For open-source examples, use Sandbox data only.
+
+`node cli.js query` blocks direct access to `items`, `access_token`, `link_sessions`, and `link_token`.

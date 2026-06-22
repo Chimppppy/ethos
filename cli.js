@@ -7,6 +7,7 @@ import {
   listItemsWithTokens,
   listTransactions,
   markItemSynced,
+  markItemNeedsUpdate,
   migrate,
   openDb,
   removeBudget,
@@ -57,6 +58,15 @@ function errorDetails(error) {
     };
   }
   return undefined;
+}
+
+function plaidError(error) {
+  const responseData = error.response?.data;
+  return responseData && typeof responseData === 'object' ? responseData : null;
+}
+
+function isItemLoginRequired(error) {
+  return plaidError(error)?.error_code === 'ITEM_LOGIN_REQUIRED';
 }
 
 function parseOptions(args) {
@@ -135,8 +145,8 @@ function assertReadOnlySql(sql) {
   if (/\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|PRAGMA|ATTACH)\b/i.test(trimmed)) {
     throw new Error('query rejects write or schema keywords');
   }
-  if (/\b(items|access_token)\b/i.test(trimmed)) {
-    throw new Error('query cannot read items or access_token; use status for item metadata');
+  if (/\b(items|access_token|link_sessions|link_token)\b/i.test(trimmed)) {
+    throw new Error('query cannot read local auth/link internals; use status for item metadata');
   }
 }
 
@@ -173,7 +183,25 @@ async function sync(db) {
       modified: 0,
       removed: 0,
       has_cursor: false,
+      needs_update: Boolean(item.needs_update),
+      last_error_code: item.last_error_code ?? null,
       warnings: []
+    };
+
+    const markNeedsUpdate = (step, error) => {
+      const plaid = plaidError(error);
+      const errorCode = plaid?.error_code ?? 'ITEM_LOGIN_REQUIRED';
+      const message = plaid?.error_message ?? error.message;
+      markItemNeedsUpdate(db, item.item_id, errorCode, message);
+      itemResult.needs_update = true;
+      itemResult.last_error_code = errorCode;
+      itemResult.warnings.push({
+        step,
+        message,
+        details: errorDetails(error),
+        repair_command: 'npm run link:update'
+      });
+      results.push(itemResult);
     };
 
     let accountsResponse;
@@ -182,14 +210,26 @@ async function sync(db) {
         access_token: item.access_token
       });
     } catch (error) {
+      if (isItemLoginRequired(error)) {
+        markNeedsUpdate('accountsBalanceGet', error);
+        continue;
+      }
       itemResult.warnings.push({
         step: 'accountsBalanceGet',
         message: error.message,
         details: errorDetails(error)
       });
-      accountsResponse = await client.accountsGet({
-        access_token: item.access_token
-      });
+      try {
+        accountsResponse = await client.accountsGet({
+          access_token: item.access_token
+        });
+      } catch (fallbackError) {
+        if (isItemLoginRequired(fallbackError)) {
+          markNeedsUpdate('accountsGet', fallbackError);
+          continue;
+        }
+        throw fallbackError;
+      }
     }
 
     const upsertAccounts = db.transaction((accounts) => {
@@ -204,39 +244,49 @@ async function sync(db) {
     let cursor = item.cursor || undefined;
     let hasMore = true;
 
-    while (hasMore) {
-      const response = await client.transactionsSync({
-        access_token: item.access_token,
-        cursor,
-        count: 500
-      });
-      const data = response.data;
-      const applyChanges = db.transaction(() => {
-        for (const transaction of data.added) {
-          upsertTransaction(db, transaction);
-        }
-        for (const transaction of data.modified) {
-          upsertTransaction(db, transaction);
-        }
-        for (const transaction of data.removed) {
-          removeTransaction(db, transaction.transaction_id);
-        }
-      });
-      applyChanges();
+    try {
+      while (hasMore) {
+        const response = await client.transactionsSync({
+          access_token: item.access_token,
+          cursor,
+          count: 500
+        });
+        const data = response.data;
+        const applyChanges = db.transaction(() => {
+          for (const transaction of data.added) {
+            upsertTransaction(db, transaction);
+          }
+          for (const transaction of data.modified) {
+            upsertTransaction(db, transaction);
+          }
+          for (const transaction of data.removed) {
+            removeTransaction(db, transaction.transaction_id);
+          }
+        });
+        applyChanges();
 
-      itemResult.added += data.added.length;
-      itemResult.modified += data.modified.length;
-      itemResult.removed += data.removed.length;
-      totals.added += data.added.length;
-      totals.modified += data.modified.length;
-      totals.removed += data.removed.length;
+        itemResult.added += data.added.length;
+        itemResult.modified += data.modified.length;
+        itemResult.removed += data.removed.length;
+        totals.added += data.added.length;
+        totals.modified += data.modified.length;
+        totals.removed += data.removed.length;
 
-      cursor = data.next_cursor;
-      hasMore = data.has_more;
+        cursor = data.next_cursor;
+        hasMore = data.has_more;
+      }
+    } catch (error) {
+      if (isItemLoginRequired(error)) {
+        markNeedsUpdate('transactionsSync', error);
+        continue;
+      }
+      throw error;
     }
 
     markItemSynced(db, item.item_id, cursor);
     itemResult.has_cursor = Boolean(cursor);
+    itemResult.needs_update = false;
+    itemResult.last_error_code = null;
     results.push(itemResult);
   }
 
@@ -260,6 +310,19 @@ async function main() {
   if (command === 'status') {
     printJson({ ok: true, ...status(db) });
     return;
+  }
+
+  if (command === 'auth') {
+    if (!subcommand || subcommand === 'status') {
+      const currentStatus = status(db);
+      printJson({
+        ok: true,
+        db_path: currentStatus.db_path,
+        items: currentStatus.items,
+        repair_command: 'npm run link:update'
+      });
+      return;
+    }
   }
 
   if (command === 'accounts') {

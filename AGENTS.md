@@ -27,6 +27,8 @@ This smoke test does not require Plaid credentials. It checks syntax, migration,
 
 Do not run `npm run link` during automated Codex work unless the user explicitly asks for the browser link flow. It starts a local web server and waits for user action. For sandbox setup, use `npm run link:sandbox` only when `.env` contains Plaid sandbox credentials.
 
+If `node cli.js sync` returns an Item with `needs_update: true`, or a Plaid `ITEM_LOGIN_REQUIRED` warning, tell the user to run `npm run link:update` or open `ethos` and run `/link update`. This starts Plaid Link update mode for the existing local Item. Do not create a duplicate Item to repair auth.
+
 For real accounts, use Plaid Production or Trial plan credentials with `PLAID_ENV=production`. Use a separate `DB_PATH`, such as `./data/finance-real.db`, so sandbox data and real data stay separate. Existing Items are tied to the Plaid environment that created them.
 
 If the real bank uses OAuth and the Link flow complains about redirects, set `LINK_REDIRECT_URI` to an allowed redirect URI configured in the Plaid Dashboard. For desktop web, Plaid can often complete OAuth without a redirect URI, but a configured URI is more reliable for OAuth institutions.
@@ -49,6 +51,7 @@ handbook/automation.md
 ```bash
 node cli.js migrate
 node cli.js status
+node cli.js auth status
 node cli.js accounts
 node cli.js sync
 node cli.js schema
@@ -95,6 +98,7 @@ Setup:
 
 ```bash
 npm run link
+npm run link:update
 npm run link:sandbox
 ```
 
@@ -197,4 +201,4 @@ Use `query` for custom questions:
 node cli.js query "SELECT category, SUM(amount) AS spent FROM v_tx WHERE month = '2026-06' AND amount > 0 GROUP BY category ORDER BY spent DESC"
 ```
 
-Only `SELECT` and `WITH` statements are allowed. Semicolons and write keywords are rejected. Queries against `items` or `access_token` are rejected so Codex cannot expose Plaid tokens through the SQL escape hatch.
+Only `SELECT` and `WITH` statements are allowed. Semicolons and write keywords are rejected. Queries against `items`, `access_token`, `link_sessions`, or `link_token` are rejected so Codex cannot expose Plaid tokens or short-lived Link tokens through the SQL escape hatch.

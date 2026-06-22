@@ -12,6 +12,14 @@ Daily:
 
 Agents can then read fresh cached data without calling Plaid every time.
 
+If sync reports `needs_update: true`, automation should stop after logging the repair state. The repair step is interactive:
+
+```bash
+npm run link:update
+```
+
+Do not schedule `npm run link:update`; it starts a browser-based Plaid Link update-mode flow for the user.
+
 ## Windows Task Scheduler
 
 Run PowerShell as the user who owns the `.env` and DB.
@@ -123,7 +131,7 @@ For an agent workflow, schedule sync only, then let the agent run reports on dem
 
 ## Safety For Automations
 
-- Do not run `setup-link.js` on a schedule. It starts an interactive local web server.
+- Do not run `setup-link.js` or `npm run link:update` on a schedule. They start interactive local web servers.
 - Do not print `.env`.
 - Keep logs out of Git.
 - Prefer `node cli.js sync` over `npm run sync` inside schedulers if PATH or shell setup is unreliable.

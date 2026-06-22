@@ -32,6 +32,8 @@
     "ethos": "node ethos.js",
     "migrate": "node cli.js migrate",
     "link": "node setup-link.js",
+    "link:update": "node setup-link.js --update",
+    "link:repair": "node setup-link.js --update",
     "link:sandbox": "node setup-link.js --sandbox",
     "sync": "node cli.js sync",
     "codex:smoke": "node --check cli.js && node --check setup-link.js && node --check ethos.js && node cli.js migrate && node cli.js status && node cli.js query \"SELECT COUNT(*) AS tx_count FROM v_tx\""
