@@ -1,0 +1,113 @@
+# Data Model
+
+Ethos stores a local SQLite cache at `DB_PATH`, defaulting to `./data/finance.db`.
+
+SQLite runs with:
+
+- WAL mode.
+- Foreign keys enabled.
+- A busy timeout for short concurrent CLI calls.
+
+## Tables
+
+### `items`
+
+One row per Plaid Item, meaning one institution login.
+
+Columns:
+
+- `item_id` primary key.
+- `access_token` Plaid token. Do not print.
+- `plaid_env` such as `sandbox` or `production`.
+- `institution_name`.
+- `cursor` Plaid transactions sync cursor. Do not print unless debugging privately.
+- `last_synced_at`.
+
+### `accounts`
+
+One row per financial account.
+
+Columns:
+
+- `account_id` primary key.
+- `item_id` foreign key.
+- `name`.
+- `type`.
+- `subtype`.
+- `mask`.
+- `current_balance`.
+- `available_balance`.
+- `iso_currency`.
+
+### `transactions`
+
+One row per Plaid transaction.
+
+Columns:
+
+- `transaction_id` primary key.
+- `account_id` foreign key.
+- `date`.
+- `name`.
+- `merchant_name`.
+- `amount`.
+- `iso_currency`.
+- `pending`.
+- `category_primary`.
+- `category_detailed`.
+- `user_category`.
+- `notes`.
+
+Plaid sign convention:
+
+- Positive amount is money out.
+- Negative amount is money in.
+
+### `budgets`
+
+Custom monthly budgets.
+
+Columns:
+
+- `category` primary key.
+- `monthly_limit`.
+
+Budgets are user-controlled and local. The CLI writes this table through:
+
+```bash
+node cli.js budget set <CATEGORY> <amount>
+node cli.js budget rm <CATEGORY>
+```
+
+## View: `v_tx`
+
+Use `v_tx` for reads. It joins transactions to account names and adds:
+
+- `account_name`
+- `account_type`
+- `account_subtype`
+- `month`
+- `category`
+
+`category` is:
+
+```sql
+COALESCE(user_category, category_primary, 'UNCATEGORIZED')
+```
+
+Useful query:
+
+```bash
+node cli.js query "SELECT category, SUM(amount) AS spent FROM v_tx WHERE month = '2026-06' AND amount > 0 GROUP BY category ORDER BY spent DESC"
+```
+
+## Data Boundaries
+
+Do not commit:
+
+- `.env`
+- `data/*.db*`
+- logs containing financial data
+- exported CSV/JSON reports unless the user explicitly wants them tracked
+
+For open-source examples, use Sandbox data only.

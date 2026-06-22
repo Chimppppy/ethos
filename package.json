@@ -1,0 +1,48 @@
+{
+  "name": "ethos-finance-cli",
+  "version": "0.1.0",
+  "description": "Local-first personal finance CLI for humans, scripts, and coding agents.",
+  "private": false,
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Chimppppy/ethos.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Chimppppy/ethos/issues"
+  },
+  "homepage": "https://github.com/Chimppppy/ethos#readme",
+  "keywords": [
+    "finance",
+    "plaid",
+    "sqlite",
+    "cli",
+    "agents",
+    "codex",
+    "claude"
+  ],
+  "bin": {
+    "ethos": "./ethos.js",
+    "ethos-cli": "./cli.js",
+    "plaid-agent": "./cli.js"
+  },
+  "scripts": {
+    "start": "node ethos.js",
+    "ethos": "node ethos.js",
+    "migrate": "node cli.js migrate",
+    "link": "node setup-link.js",
+    "link:sandbox": "node setup-link.js --sandbox",
+    "sync": "node cli.js sync",
+    "codex:smoke": "node --check cli.js && node --check setup-link.js && node --check ethos.js && node cli.js migrate && node cli.js status && node cli.js query \"SELECT COUNT(*) AS tx_count FROM v_tx\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.2.0",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "plaid": "^39.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
