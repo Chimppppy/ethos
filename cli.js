@@ -18,10 +18,11 @@ import {
   schema,
   setBudget,
   status,
+  transactionCoverage,
   upsertAccount,
   upsertTransaction
 } from './lib/db.js';
-import { getPlaidClient } from './lib/plaid.js';
+import { getPlaidClient, transactionsDaysRequested } from './lib/plaid.js';
 
 function printJson(value) {
   process.stdout.write(`${JSON.stringify(redactSecrets(value), null, 2)}\n`);
@@ -123,6 +124,18 @@ function currentMonth() {
   return new Date().toISOString().slice(0, 7);
 }
 
+function daysBetween(startDate, endDate) {
+  if (!startDate || !endDate) {
+    return 0;
+  }
+  const start = Date.parse(`${startDate}T00:00:00Z`);
+  const end = Date.parse(`${endDate}T00:00:00Z`);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return 0;
+  }
+  return Math.max(0, Math.round((end - start) / 86400000) + 1);
+}
+
 function lastMonths(count) {
   const now = new Date();
   const months = [];
@@ -149,6 +162,42 @@ function assertReadOnlySql(sql) {
   if (/\b(items|access_token|link_sessions|link_token)\b/i.test(trimmed)) {
     throw new Error('query cannot read local auth/link internals; use status for item metadata');
   }
+}
+
+function historyStatus(db) {
+  const requestedDays = transactionsDaysRequested();
+  const items = transactionCoverage(db).map((item) => {
+    const cachedDays = daysBetween(item.earliest, item.latest);
+    const looksLikeDefaultWindow = cachedDays >= 75 && cachedDays <= 110 && requestedDays > cachedDays + 30;
+    const shorterThanRequested = cachedDays > 0 && requestedDays > cachedDays + 30;
+    const needsRelinkToTestDeeperHistory = Boolean(item.has_cursor && shorterThanRequested);
+
+    return {
+      ...item,
+      cached_days: cachedDays,
+      requested_days_for_new_links: requestedDays,
+      likely_plaid_default_window: looksLikeDefaultWindow,
+      relink_recommended: needsRelinkToTestDeeperHistory,
+      relink_reason: needsRelinkToTestDeeperHistory
+        ? 'Sync is cursor-based and cannot expand the original Transactions history window. Remove and relink this Item to test deeper history.'
+        : null,
+      relink_commands: needsRelinkToTestDeeperHistory
+        ? [
+            `node cli.js item remove ${item.item_id} --confirm ${item.item_id}`,
+            `npm run link -- --days ${requestedDays}`,
+            'npm run sync'
+          ]
+        : []
+    };
+  });
+
+  return {
+    plaid_transactions_days_requested: requestedDays,
+    items,
+    guidance: items.some((item) => item.relink_recommended)
+      ? 'At least one Item has less cached history than new Link requests ask for. Re-syncing will not backfill older transactions; relink the Item if you want to test the deeper window.'
+      : 'History coverage is already consistent with the current cache, or no transactions are cached yet.'
+  };
 }
 
 async function sync(db) {
@@ -310,6 +359,11 @@ async function main() {
 
   if (command === 'status') {
     printJson({ ok: true, ...status(db) });
+    return;
+  }
+
+  if (command === 'history' || command === 'coverage' || (command === 'diagnose' && subcommand === 'history')) {
+    printJson({ ok: true, ...historyStatus(db) });
     return;
   }
 

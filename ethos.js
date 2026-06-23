@@ -52,6 +52,7 @@ Direct commands:
   /recent [limit]
   /uncategorized [limit]
   /cashflow
+  /history
   /budget list
   /budget set <CATEGORY> <amount>
   /budget rm <CATEGORY>
@@ -408,6 +409,10 @@ function parseLine(line) {
     return { type: 'command', args: ['query', trimmed.slice('query '.length)], format: 'query' };
   }
 
+  if (/\b(history|coverage|cached data|cache depth|how far back|only 3 months|last 12 months|deeper history)\b/.test(lower)) {
+    return { type: 'command', args: ['history'], format: 'history' };
+  }
+
   if (/\b(sync|refresh|update)\b/.test(lower)) {
     return { type: 'command', args: ['sync'], format: 'sync' };
   }
@@ -450,7 +455,7 @@ function parseLine(line) {
 
   return {
     type: 'unknown',
-    message: 'I can answer accounts, sync, month reports, recent transactions, uncategorized items, cashflow, budgets, and read-only SQL. Type /help for examples.'
+    message: 'I can answer accounts, sync, history coverage, month reports, recent transactions, uncategorized items, cashflow, budgets, and read-only SQL. Type /help for examples.'
   };
 }
 
@@ -481,6 +486,9 @@ function commandFromTokens(tokens) {
   }
   if (first === 'cashflow' || (first === 'report' && second === 'cashflow')) {
     return { type: 'command', args: ['report', 'cashflow'], format: 'cashflow' };
+  }
+  if (first === 'history' || first === 'coverage') {
+    return { type: 'command', args: ['history'], format: 'history' };
   }
   if (first === 'recent') {
     return { type: 'command', args: ['tx', 'list', '--limit', String(parseLimit(tokens.join(' '), 20))], format: 'transactions' };
@@ -710,6 +718,9 @@ function formatResult(result, format) {
   if (format === 'cashflow') {
     return formatCashflow(json.cashflow ?? []);
   }
+  if (format === 'history') {
+    return formatHistory(json);
+  }
   if (format === 'transactions') {
     return formatTransactions(json.transactions ?? []);
   }
@@ -771,6 +782,38 @@ function formatSync(json) {
     }
   }
 
+  return lines.join('\n');
+}
+
+function formatHistory(json) {
+  const requestedDays = json.plaid_transactions_days_requested ?? 'unknown';
+  const lines = [`New Link requests ask Plaid for ${requestedDays} day(s) of transaction history.`];
+
+  if (!json.items?.length) {
+    lines.push('No linked Items found. Run /link start to connect an institution.');
+    return lines.join('\n');
+  }
+
+  for (const item of json.items) {
+    const name = item.institution_name ?? item.item_id;
+    const range = item.earliest && item.latest
+      ? `${item.earliest} to ${item.latest} (${item.cached_days} cached day(s), ${item.transactions} tx)`
+      : `no cached transactions (${item.transactions} tx)`;
+    lines.push(`- ${name}: ${range}`);
+    if (item.likely_plaid_default_window) {
+      lines.push('  Looks like Plaid\'s default ~90-day window.');
+    }
+    if (item.relink_recommended) {
+      lines.push('  Re-sync will not backfill older history. To test deeper history, remove and relink this Item.');
+      lines.push(`  ${item.relink_commands?.[0]}`);
+      lines.push(`  ${item.relink_commands?.[1]}`);
+      lines.push(`  ${item.relink_commands?.[2]}`);
+    }
+  }
+
+  if (json.guidance) {
+    lines.push(json.guidance);
+  }
   return lines.join('\n');
 }
 

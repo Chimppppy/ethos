@@ -11,6 +11,7 @@ node cli.js auth status
 node cli.js item list
 node cli.js accounts
 node cli.js sync
+node cli.js history
 node cli.js schema
 ```
 
@@ -31,10 +32,11 @@ node cli.js tx categorize <transaction_id> <CATEGORY>
 
 ```bash
 node cli.js item list
+node cli.js history
 node cli.js item remove <item_id> --confirm <item_id>
 ```
 
-`item remove` removes the Item at Plaid and deletes the local accounts/transactions for that Item. Use it before relinking when you need a deeper transaction history window than the Item was originally created with.
+`history` reports earliest/latest cached transaction dates per Item and flags Items that look like Plaid's default 90-day window. `item remove` removes the Item at Plaid and deletes the local accounts/transactions for that Item. Use it before relinking when you need a deeper transaction history window than the Item was originally created with.
 
 Filters:
 

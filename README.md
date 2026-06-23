@@ -187,6 +187,19 @@ ethos> /sync
 
 ## Transaction History Depth
 
+Check the cached history range before answering long-range questions:
+
+```bash
+node cli.js history
+```
+
+Inside the shell:
+
+```text
+ethos> history
+ethos> why only 3 months
+```
+
 Ethos requests 730 days of transaction history for new Plaid Items by default:
 
 ```env

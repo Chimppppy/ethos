@@ -115,6 +115,12 @@ Plaid's Transactions product defaults to 90 days of history. Ethos sets new Link
 PLAID_TRANSACTIONS_DAYS_REQUESTED=730
 ```
 
+Check what is actually cached:
+
+```bash
+node cli.js history
+```
+
 Override it for a single new Link request:
 
 ```bash

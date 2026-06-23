@@ -57,6 +57,7 @@ node cli.js auth status
 node cli.js item list
 node cli.js accounts
 node cli.js sync
+node cli.js history
 node cli.js schema
 node cli.js query "<sql>"
 ```
@@ -78,6 +79,7 @@ Multiple institutions are supported. Running `setup-link.js` again, or using `/l
 Transactions:
 
 ```bash
+node cli.js history
 node cli.js tx list [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--account ACCOUNT_ID] [--category CAT] [--search TEXT] [--min N] [--max N] [--uncategorized] [--limit N]
 node cli.js tx categorize <transaction_id> <CATEGORY>
 node cli.js item remove <item_id> --confirm <item_id>
