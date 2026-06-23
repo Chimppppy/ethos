@@ -38,16 +38,33 @@ function redactSecrets(value) {
 const LINK_HOST = '127.0.0.1';
 const START_IN_UPDATE_MODE = process.argv.includes('--update') || process.argv.includes('--repair');
 
-function optionValue(flag) {
-  const index = process.argv.indexOf(flag);
-  if (index < 0) {
-    return null;
+function optionValue(...flags) {
+  for (const flag of flags) {
+    const inlinePrefix = `${flag}=`;
+    const inline = process.argv.find((arg) => arg.startsWith(inlinePrefix));
+    if (inline) {
+      return inline.slice(inlinePrefix.length);
+    }
+
+    const index = process.argv.indexOf(flag);
+    if (index < 0) {
+      continue;
+    }
+    const value = process.argv[index + 1];
+    if (value && !value.startsWith('--')) {
+      return value;
+    }
   }
-  const value = process.argv[index + 1];
-  return value && !value.startsWith('--') ? value : null;
+  return null;
 }
 
 const PRESELECTED_ITEM_ID = optionValue('--item');
+const REQUESTED_TRANSACTIONS_DAYS = optionValue(
+  '--days',
+  '--history-days',
+  '--transactions-days',
+  '--transactions-days-requested'
+);
 
 function publicUrl(port) {
   return `http://${LINK_HOST}:${port}`;
@@ -112,7 +129,7 @@ async function exchangeAndStore(client, db, publicToken, sessionId) {
 async function runSandbox() {
   const db = migrate(openDb());
   const client = getPlaidClient();
-  const daysRequested = transactionsDaysRequested();
+  const daysRequested = transactionsDaysRequested(REQUESTED_TRANSACTIONS_DAYS);
   const endDate = new Date();
   const startDate = new Date(endDate);
   startDate.setUTCDate(startDate.getUTCDate() - daysRequested);
@@ -130,8 +147,8 @@ async function runSandbox() {
   printJson({ ok: true, sandbox: true, transactions_days_requested: daysRequested, item });
 }
 
-async function createLinkToken(client, db, { mode = 'create', itemId = null } = {}) {
-  const daysRequested = transactionsDaysRequested();
+async function createLinkToken(client, db, { mode = 'create', itemId = null, daysRequestedOverride = undefined } = {}) {
+  let createModeDaysRequested = null;
   const request = {
     user: {
       client_user_id: 'local-user'
@@ -149,6 +166,8 @@ async function createLinkToken(client, db, { mode = 'create', itemId = null } = 
     }
     request.access_token = item.access_token;
   } else {
+    const daysRequested = transactionsDaysRequested(daysRequestedOverride ?? REQUESTED_TRANSACTIONS_DAYS);
+    createModeDaysRequested = daysRequested;
     request.products = PRODUCTS;
     request.transactions = {
       days_requested: daysRequested
@@ -173,7 +192,7 @@ async function createLinkToken(client, db, { mode = 'create', itemId = null } = 
     mode,
     item_id: session.item_id,
     institution_name: item?.institution_name ?? null,
-    transactions_days_requested: mode === 'create' ? daysRequested : null,
+    transactions_days_requested: createModeDaysRequested,
     link_token: response.data.link_token
   };
 }
@@ -436,7 +455,10 @@ async function runServer() {
 
   app.post('/create_link_token', async (req, res) => {
     try {
-      const session = await createLinkToken(client, db, { mode: 'create' });
+      const session = await createLinkToken(client, db, {
+        mode: 'create',
+        daysRequestedOverride: req.body?.days_requested ?? req.query?.days_requested
+      });
       res.json({ ok: true, ...session });
     } catch (error) {
       res.status(500).json({ ok: false, error: error.message });
@@ -508,7 +530,7 @@ async function runServer() {
     ok: true,
     url: publicUrl(listening.port),
     mode: START_IN_UPDATE_MODE ? 'update' : 'create',
-    transactions_days_requested: START_IN_UPDATE_MODE ? null : transactionsDaysRequested(),
+    transactions_days_requested: START_IN_UPDATE_MODE ? null : transactionsDaysRequested(REQUESTED_TRANSACTIONS_DAYS),
     repair_item_id: PRESELECTED_ITEM_ID,
     port: listening.port,
     requested_port: listening.requested_port,

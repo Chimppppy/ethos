@@ -115,6 +115,20 @@ Plaid's Transactions product defaults to 90 days of history. Ethos sets new Link
 PLAID_TRANSACTIONS_DAYS_REQUESTED=730
 ```
 
+Override it for a single new Link request:
+
+```bash
+npm run link -- --days 365
+node setup-link.js --days 180
+node setup-link.js --sandbox --days 30
+```
+
+Inside `ethos`:
+
+```text
+ethos> /link start --days 365
+```
+
 This setting only applies when Transactions is first added to a Plaid Item. If an Item was already linked without it, remove and relink that Item after explicit user confirmation:
 
 ```bash

@@ -55,7 +55,7 @@ Direct commands:
   /budget list
   /budget set <CATEGORY> <amount>
   /budget rm <CATEGORY>
-  /link start
+  /link start [--days N]
   /link update
   /link status
   /link stop
@@ -471,7 +471,9 @@ function commandFromTokens(tokens) {
     return { type: 'command', args: ['accounts'], format: 'accounts' };
   }
   if (first === 'link' || first === 'connect') {
-    return { type: 'link', action: second ?? 'start' };
+    const action = second?.startsWith('--') ? 'start' : (second ?? 'start');
+    const linkArgs = second?.startsWith('--') ? [second, ...rest] : rest;
+    return { type: 'link', action, args: linkArgs };
   }
   if (first === 'month' || (first === 'report' && second === 'month')) {
     const month = tokens.find((token) => /^\d{4}-\d{2}$/.test(token));
@@ -569,12 +571,33 @@ function linkStatusText() {
   return 'Plaid Link server is not running. Use /link start to connect another institution or /link update to repair auth.';
 }
 
-function startLinkServer(mode = 'create') {
+function linkDaysFromArgs(args = []) {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--days' || arg === '--history-days' || arg === '--transactions-days') {
+      return args[index + 1] ?? null;
+    }
+    const inline = arg.match(/^--(?:days|history-days|transactions-days)=(.+)$/);
+    if (inline) {
+      return inline[1];
+    }
+    if (/^\d{1,3}$/.test(arg)) {
+      return arg;
+    }
+  }
+  return null;
+}
+
+function startLinkServer(mode = 'create', args = []) {
   if (linkServer?.process && !linkServer.process.killed) {
     return linkStatusText();
   }
 
   const setupArgs = mode === 'update' ? [SETUP_LINK_PATH, '--update'] : [SETUP_LINK_PATH];
+  const days = mode === 'create' ? linkDaysFromArgs(args) : null;
+  if (days) {
+    setupArgs.push('--days', days);
+  }
   const child = spawn(process.execPath, setupArgs, {
     cwd: ROOT_DIR,
     env: process.env,
@@ -607,7 +630,10 @@ function startLinkServer(mode = 'create') {
           if (payload.mode === 'update') {
             console.log('Open that URL, click Repair selected connection, and complete Plaid Link update mode. Then run /sync again.');
           } else {
-            console.log('Open that URL, click Connect account, and complete Plaid Link. You can connect multiple institutions from the same page.');
+            const historyText = payload.transactions_days_requested
+              ? ` This request asks Plaid for ${payload.transactions_days_requested} days of transaction history.`
+              : '';
+            console.log(`Open that URL, click Connect account, and complete Plaid Link. You can connect multiple institutions from the same page.${historyText}`);
           }
         } else {
           console.log(`\n${JSON.stringify(payload, null, 2)}`);
@@ -645,10 +671,10 @@ function stopLinkServer() {
   return 'Plaid Link server stopped.';
 }
 
-function handleLinkCommand(action) {
+function handleLinkCommand(action, args = []) {
   const normalized = String(action ?? 'start').toLowerCase();
   if (['start', 'run', 'open', 'bank', 'banks'].includes(normalized)) {
-    return startLinkServer('create');
+    return startLinkServer('create', args);
   }
   if (['update', 'repair', 'reauth', 're-auth', 'auth', 'login'].includes(normalized)) {
     return startLinkServer('update');
@@ -659,7 +685,7 @@ function handleLinkCommand(action) {
   if (['stop', 'kill', 'close'].includes(normalized)) {
     return stopLinkServer();
   }
-  return 'Use /link start, /link update, /link status, or /link stop.';
+  return 'Use /link start [--days N], /link update, /link status, or /link stop.';
 }
 
 function formatResult(result, format) {
@@ -846,13 +872,19 @@ async function execute(parsed, rl, { rawJson = false, interactive = false } = {}
   if (parsed.type === 'link') {
     const linkAction = String(parsed.action ?? 'start').toLowerCase();
     if (!interactive && ['start', 'run', 'open', 'bank', 'banks', 'update', 'repair', 'reauth', 're-auth', 'auth', 'login'].includes(linkAction)) {
+      const days = linkDaysFromArgs(parsed.args ?? []);
+      const dayArgs = days && !['update', 'repair', 'reauth', 're-auth', 'auth', 'login'].includes(linkAction) ? ` -- --days ${days}` : '';
+      const shellCommand = dayArgs ? `npm run link${dayArgs}` : 'npm run link';
+      const shellHint = days && !['update', 'repair', 'reauth', 're-auth', 'auth', 'login'].includes(linkAction)
+        ? `/link start --days ${days}`
+        : '/link start';
       console.log('Plaid Link starts a local browser server.');
       console.log(linkAction === 'update' || linkAction === 'repair' || linkAction === 'reauth' || linkAction === 're-auth' || linkAction === 'auth' || linkAction === 'login'
         ? 'Run `npm run link:update`, or run `npm run ethos` and use `/link update`.'
-        : 'Run `npm run link`, or run `npm run ethos` and use `/link start`.');
+        : `Run \`${shellCommand}\`, or run \`npm run ethos\` and use \`${shellHint}\`.`);
       return;
     }
-    console.log(handleLinkCommand(parsed.action));
+    console.log(handleLinkCommand(parsed.action, parsed.args ?? []));
     return;
   }
 

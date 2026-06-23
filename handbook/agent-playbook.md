@@ -41,6 +41,8 @@ That opens Plaid Link update mode for the existing local Item. Do not create a d
 
 If the user needs more than the cached transaction history and the Item was linked with Plaid's default 90-day window, explain that Plaid cannot expand history on an existing Transactions Item. Ask for explicit confirmation before removing and relinking.
 
+For a new relink, choose the history window needed for the task and pass it on the Link request, for example `npm run link -- --days 365`. Valid values are 1-730.
+
 Then run the specific report or query needed.
 
 ## Safe Read Recipes

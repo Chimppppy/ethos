@@ -118,8 +118,10 @@ Agents should prefer `cli.js` for automation and JSON parsing.
 
 ```bash
 npm run link
+npm run link -- --days 365
 npm run link:update
 npm run link:sandbox
+node setup-link.js --days 180
 ```
 
-Use `npm run link` to connect another institution. Use `npm run link:update` when sync reports `ITEM_LOGIN_REQUIRED` or `needs_update: true`; it repairs the existing local Plaid Item instead of creating a duplicate connection.
+Use `npm run link` to connect another institution. Add `-- --days N` to override the transaction history window for that single Link request. Use `npm run link:update` when sync reports `ITEM_LOGIN_REQUIRED` or `needs_update: true`; it repairs the existing local Plaid Item instead of creating a duplicate connection.

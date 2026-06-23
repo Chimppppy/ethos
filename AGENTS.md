@@ -33,7 +33,7 @@ For real accounts, use Plaid Production or Trial plan credentials with `PLAID_EN
 
 If the real bank uses OAuth and the Link flow complains about redirects, set `LINK_REDIRECT_URI` to an allowed redirect URI configured in the Plaid Dashboard. For desktop web, Plaid can often complete OAuth without a redirect URI, but a configured URI is more reliable for OAuth institutions.
 
-Ethos requests 730 days of transaction history for new Items by default through `PLAID_TRANSACTIONS_DAYS_REQUESTED=730`. If an existing Item only has about 90 days of history, Plaid cannot expand it with sync or update mode. The user must explicitly approve removing and relinking the Item.
+Ethos requests 730 days of transaction history for new Items by default through `PLAID_TRANSACTIONS_DAYS_REQUESTED=730`. Agents may override this for a single new Link request with `npm run link -- --days N` or `node setup-link.js --days N`, where `N` is 1-730. If an existing Item only has about 90 days of history, Plaid cannot expand it with sync or update mode. The user must explicitly approve removing and relinking the Item.
 
 ## Commands
 
@@ -102,6 +102,7 @@ Setup:
 
 ```bash
 npm run link
+npm run link -- --days 365
 npm run link:update
 npm run link:sandbox
 ```
