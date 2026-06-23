@@ -13,6 +13,7 @@ Use this when an AI coding agent is driving Ethos for a user.
   - `node cli.js tx categorize ...`
   - `node cli.js budget set ...`
   - `node cli.js budget rm ...`
+  - `node cli.js item remove ... --confirm ...`
 - Prefer exact dates and months.
 - Keep explanations direct, numeric, and traceable to CLI output.
 
@@ -37,6 +38,8 @@ npm run link:update
 ```
 
 That opens Plaid Link update mode for the existing local Item. Do not create a duplicate Item to repair auth.
+
+If the user needs more than the cached transaction history and the Item was linked with Plaid's default 90-day window, explain that Plaid cannot expand history on an existing Transactions Item. Ask for explicit confirmation before removing and relinking.
 
 Then run the specific report or query needed.
 

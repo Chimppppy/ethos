@@ -517,7 +517,8 @@ function monthCommand(month) {
 function needsConfirmation(args) {
   return (
     (args[0] === 'tx' && args[1] === 'categorize') ||
-    (args[0] === 'budget' && ['set', 'rm'].includes(args[1]))
+    (args[0] === 'budget' && ['set', 'rm'].includes(args[1])) ||
+    (args[0] === 'item' && ['remove', 'rm'].includes(args[1]))
   );
 }
 

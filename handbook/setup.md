@@ -30,6 +30,7 @@ npm run migrate
 PLAID_CLIENT_ID=
 PLAID_SECRET=
 PLAID_ENV=sandbox
+PLAID_TRANSACTIONS_DAYS_REQUESTED=730
 DB_PATH=./data/finance.db
 LINK_PORT=3000
 LINK_REDIRECT_URI=
@@ -47,6 +48,7 @@ DB_PATH=./data/finance.db
 
 ```env
 PLAID_ENV=production
+PLAID_TRANSACTIONS_DAYS_REQUESTED=730
 DB_PATH=./data/finance-real.db
 ```
 
@@ -104,6 +106,25 @@ node cli.js auth status
 ```
 
 This uses the Plaid access token already stored in the local SQLite database. The Item's access token does not move into Claude, Codex, or a terminal session.
+
+## Transaction History Depth
+
+Plaid's Transactions product defaults to 90 days of history. Ethos sets new Link sessions to request 730 days by default:
+
+```env
+PLAID_TRANSACTIONS_DAYS_REQUESTED=730
+```
+
+This setting only applies when Transactions is first added to a Plaid Item. If an Item was already linked without it, remove and relink that Item after explicit user confirmation:
+
+```bash
+node cli.js item list
+node cli.js item remove <item_id> --confirm <item_id>
+npm run link
+npm run sync
+```
+
+Do not remove an Item casually. Removing it deletes that Item's local accounts and transactions, then the relink creates a fresh Item with the requested history window.
 
 ## Verify
 

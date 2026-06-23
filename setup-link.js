@@ -14,7 +14,7 @@ import {
   openDb,
   upsertItem
 } from './lib/db.js';
-import { COUNTRY_CODES, getInstitutionName, getPlaidClient, PRODUCTS } from './lib/plaid.js';
+import { COUNTRY_CODES, getInstitutionName, getPlaidClient, PRODUCTS, transactionsDaysRequested } from './lib/plaid.js';
 
 function printJson(value) {
   process.stdout.write(`${JSON.stringify(redactSecrets(value), null, 2)}\n`);
@@ -112,15 +112,26 @@ async function exchangeAndStore(client, db, publicToken, sessionId) {
 async function runSandbox() {
   const db = migrate(openDb());
   const client = getPlaidClient();
+  const daysRequested = transactionsDaysRequested();
+  const endDate = new Date();
+  const startDate = new Date(endDate);
+  startDate.setUTCDate(startDate.getUTCDate() - daysRequested);
   const response = await client.sandboxPublicTokenCreate({
     institution_id: 'ins_109508',
-    initial_products: PRODUCTS
+    initial_products: PRODUCTS,
+    options: {
+      transactions: {
+        start_date: startDate.toISOString().slice(0, 10),
+        end_date: endDate.toISOString().slice(0, 10)
+      }
+    }
   });
   const item = await exchangeAndStore(client, db, response.data.public_token);
-  printJson({ ok: true, sandbox: true, item });
+  printJson({ ok: true, sandbox: true, transactions_days_requested: daysRequested, item });
 }
 
 async function createLinkToken(client, db, { mode = 'create', itemId = null } = {}) {
+  const daysRequested = transactionsDaysRequested();
   const request = {
     user: {
       client_user_id: 'local-user'
@@ -139,6 +150,9 @@ async function createLinkToken(client, db, { mode = 'create', itemId = null } = 
     request.access_token = item.access_token;
   } else {
     request.products = PRODUCTS;
+    request.transactions = {
+      days_requested: daysRequested
+    };
   }
 
   if (process.env.LINK_REDIRECT_URI) {
@@ -159,6 +173,7 @@ async function createLinkToken(client, db, { mode = 'create', itemId = null } = 
     mode,
     item_id: session.item_id,
     institution_name: item?.institution_name ?? null,
+    transactions_days_requested: mode === 'create' ? daysRequested : null,
     link_token: response.data.link_token
   };
 }
@@ -493,6 +508,7 @@ async function runServer() {
     ok: true,
     url: publicUrl(listening.port),
     mode: START_IN_UPDATE_MODE ? 'update' : 'create',
+    transactions_days_requested: START_IN_UPDATE_MODE ? null : transactionsDaysRequested(),
     repair_item_id: PRESELECTED_ITEM_ID,
     port: listening.port,
     requested_port: listening.requested_port,

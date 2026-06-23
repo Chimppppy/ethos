@@ -8,6 +8,7 @@ All `cli.js` commands print JSON to stdout. This is the interface agents should 
 node cli.js migrate
 node cli.js status
 node cli.js auth status
+node cli.js item list
 node cli.js accounts
 node cli.js sync
 node cli.js schema
@@ -25,6 +26,15 @@ node cli.js tx list --min 20 --max 100
 node cli.js tx list --uncategorized --limit 50
 node cli.js tx categorize <transaction_id> <CATEGORY>
 ```
+
+## Items
+
+```bash
+node cli.js item list
+node cli.js item remove <item_id> --confirm <item_id>
+```
+
+`item remove` removes the Item at Plaid and deletes the local accounts/transactions for that Item. Use it before relinking when you need a deeper transaction history window than the Item was originally created with.
 
 Filters:
 

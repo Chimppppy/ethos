@@ -11,6 +11,7 @@ import {
   migrate,
   openDb,
   removeBudget,
+  removeItem,
   removeTransaction,
   reportCashflow,
   reportMonth,
@@ -320,6 +321,41 @@ async function main() {
         db_path: currentStatus.db_path,
         items: currentStatus.items,
         repair_command: 'npm run link:update'
+      });
+      return;
+    }
+  }
+
+  if (command === 'item') {
+    if (subcommand === 'list') {
+      printJson({ ok: true, items: status(db).items });
+      return;
+    }
+
+    if (subcommand === 'remove' || subcommand === 'rm') {
+      const [itemId, ...removeArgs] = rest;
+      const { options } = parseOptions(removeArgs);
+      if (!itemId) {
+        throw new Error('item remove requires item_id');
+      }
+      if (options.confirm !== itemId) {
+        throw new Error(`item remove requires --confirm ${itemId}`);
+      }
+
+      const item = listItemsWithTokens(db).find((candidate) => candidate.item_id === itemId);
+      if (!item) {
+        throw new Error(`No Item found for active PLAID_ENV with item_id ${itemId}`);
+      }
+
+      const client = getPlaidClient();
+      await client.itemRemove({ access_token: item.access_token });
+      const changes = removeItem(db, itemId);
+      printJson({
+        ok: true,
+        removed: changes,
+        item_id: itemId,
+        institution_name: item.institution_name,
+        message: 'Item removed locally and at Plaid. Run npm run link to create a new Item.'
       });
       return;
     }

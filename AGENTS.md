@@ -33,6 +33,8 @@ For real accounts, use Plaid Production or Trial plan credentials with `PLAID_EN
 
 If the real bank uses OAuth and the Link flow complains about redirects, set `LINK_REDIRECT_URI` to an allowed redirect URI configured in the Plaid Dashboard. For desktop web, Plaid can often complete OAuth without a redirect URI, but a configured URI is more reliable for OAuth institutions.
 
+Ethos requests 730 days of transaction history for new Items by default through `PLAID_TRANSACTIONS_DAYS_REQUESTED=730`. If an existing Item only has about 90 days of history, Plaid cannot expand it with sync or update mode. The user must explicitly approve removing and relinking the Item.
+
 ## Commands
 
 All CLI commands print JSON to stdout.
@@ -52,6 +54,7 @@ handbook/automation.md
 node cli.js migrate
 node cli.js status
 node cli.js auth status
+node cli.js item list
 node cli.js accounts
 node cli.js sync
 node cli.js schema
@@ -77,6 +80,7 @@ Transactions:
 ```bash
 node cli.js tx list [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--account ACCOUNT_ID] [--category CAT] [--search TEXT] [--min N] [--max N] [--uncategorized] [--limit N]
 node cli.js tx categorize <transaction_id> <CATEGORY>
+node cli.js item remove <item_id> --confirm <item_id>
 ```
 
 Budgets:

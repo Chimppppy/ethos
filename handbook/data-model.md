@@ -25,6 +25,8 @@ Columns:
 - `needs_update` marks Items that need Plaid Link update mode.
 - `last_error_code`, `last_error_message`, and `last_error_at` store the latest local sync auth error without exposing tokens.
 
+Transaction history depth is Link-time Plaid configuration, not an `items` column. New Link sessions request `PLAID_TRANSACTIONS_DAYS_REQUESTED`, which defaults to 730.
+
 ### `accounts`
 
 One row per financial account.

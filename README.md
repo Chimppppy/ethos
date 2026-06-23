@@ -58,6 +58,7 @@ For real accounts, set `PLAID_ENV=production`, add your real Plaid credentials t
 
 ```env
 PLAID_ENV=production
+PLAID_TRANSACTIONS_DAYS_REQUESTED=730
 DB_PATH=./data/finance-real.db
 ```
 
@@ -123,6 +124,7 @@ Agents should prefer `cli.js` because it prints JSON and has tighter boundaries.
 node cli.js status
 node cli.js sync
 node cli.js auth status
+node cli.js item list
 node cli.js accounts
 node cli.js tx list --limit 20
 node cli.js report month --month 2026-06
@@ -182,6 +184,25 @@ ethos> /sync
 ```
 
 `sync` marks the affected Item with `needs_update: true` and returns `repair_command: "npm run link:update"`. `node cli.js auth status` shows the same local connection state without exposing access tokens.
+
+## Transaction History Depth
+
+Ethos requests 730 days of transaction history for new Plaid Items by default:
+
+```env
+PLAID_TRANSACTIONS_DAYS_REQUESTED=730
+```
+
+Plaid defaults to 90 days if this is not set, which can make a "last 12 months" report only cover about 3 months. Plaid only applies `transactions.days_requested` when Transactions is first added to an Item. If an Item was originally linked with 90 days, rerunning sync or update mode cannot expand it; remove the Item and link it again:
+
+```bash
+node cli.js item list
+node cli.js item remove <item_id> --confirm <item_id>
+npm run link
+npm run sync
+```
+
+Only run `item remove` after confirming you are ready to replace that local connection. It removes the Item at Plaid and deletes the local accounts/transactions for that Item.
 
 ## Budgets
 
